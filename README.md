@@ -1,92 +1,67 @@
-# PCAP API 기반 패킷 분석기
+# PCAP-API: C 기반 실시간 패킷 분석기
 
-## 1. 프로젝트 개요
-
-본 프로젝트는 libpcap API를 활용하여 네트워크 패킷을 실시간으로 캡처하고,
-Ethernet → IP → TCP → HTTP 계층 구조로 분석하는 프로그램이다.
-UDP 패킷은 제외하고 TCP 패킷만 분석 대상으로 한다.
-SEED Labs Sniffing 예제를 기반으로 하되,
-header length 기반 parsing 구조로 확장 구현하였다.
-
---- 
-
-## 2. 프로젝트 목표
-
-(1) 네트워크 패킷 구조 이해
-(2) Ethernet / IP / TCP / Application Layer 분석
-(3) header 기반 동적 parsing 구현
-(4) Wireshark와 유사한 패킷 분석 구조 구현
-
---- 
-
-## 3. 주요 기능
-
-(1) Ethernet Header 분석 (MAC 주소 출력)
-(2) IP Header 분석 (Source / Destination IP)
-(3) TCP Header 분석 (Source / Destination Port)
-(4) HTTP Payload 출력
-(5) TCP only 처리 (UDP 제외)
-(6) Header length 기반 parsing
+본 프로젝트는 `libpcap` API를 활용하여 네트워크 트래픽을 실시간으로 캡처하고, Ethernet/IP/TCP/HTTP 계층 구조를 동적으로 분석하는 프로그램이다. 고정 오프셋 방식이 아닌, 각 헤더의 `Length` 필드를 기반으로 페이로드를 정확히 추출하도록 설계되었다.
 
 ---
 
-## 4. 설계 구조
+## 1. 프로젝트 목표
 
-패킷 처리 흐름:
-
-Ethernet → IP → TCP → HTTP
-
-핵심 parsing 방식:
-
-- IP Header Length: ip->iph_ihl * 4
-- TCP Header Length: TH_OFF(tcp) * 4
-- HTTP 시작 위치: (char *)tcp + tcp_header_len
+- 계층적 분석: Ethernet → IP → TCP → HTTP 계층 구조의 실시간 파싱
+- 동적 Parsing: 고정 오프셋이 아닌 `IHL` 및 `TH_OFF` 필드를 활용한 정확한 헤더 길이 계산
+- 필터링: BPF(Berkeley Packet Filter)를 활용한 TCP 80번 포트 트래픽 선별
 
 ---
 
-## 5. 실행 환경 
+## 2. 주요 기능
 
-- Ubuntu Linux
-- GCC Compiler
-- libpcap-dev
+- 헤더 분석: SRC/DST MAC, IP, Port 정보 출력
+- HTTP Payload: TCP 페이로드 내 가독성 있는 HTTP 데이터만 필터링하여 출력
+- 안정성: 인터페이스를 인자로 전달받아 다양한 환경에서 동작 가능하도록 구현
 
 ---
 
-## 6. 의존성 설치 
+## 3. 실행 환경 및 설치
 
+실행 환경: Ubuntu Linux / GCC Compiler
+
+```bash
+# 1. 의존성 설치
 sudo apt update
 sudo apt install libpcap-dev -y
 
---- 
-
-## 7. 컴파일 방법
-
+# 2. 컴파일
 gcc packet_analyzer.c -o analyzer -lpcap
+```
 
 ---
 
-## 8. 실행 방법 (중요: sudo 필요)
+## 4.  실행 및 테스트 방법
 
-sudo ./analyzer
+프로그램 실행 시 감시할 네트워크 인터페이스를 지정해야 하므로, 다음 명령어로 인터페이스 이름을 확인해야 한다.
 
----
+```bash
+# 1. 네트워크 인터페이스 확인
 
-## 9. 테스트 방법
+ip addr  # 예: eth0, enp0s3, wlan0 등 확인
 
-HTTP 트래픽 생성:
+# 2. 프로그램 실행 (반드시 sudo 권한으로 실행해야 한다.)
 
-curl http://example.com
+sudo ./analyzer <인터페이스명>  # 예: sudo ./analyzer eth0
 
-또는 추가 트래픽 생성:
+# 3. HTTP 트래픽 발생 (테스트)
 
-curl https://example.com
+분석기는 TCP Port 80(HTTP) 트래픽만 감지. HTTPS(443)는 암호화되어 내용 확인이 어려우므로, 테스트를 위해 새로운 터미널 창에서 다음 명령어를 실행해야 한다. 
 
---- 
+# HTTP 사이트에 요청을 보내 트래픽 발생
+curl [http://info.cern.ch/](http://info.cern.ch/)
+```
 
-## 10. 결론
+## 4. 핵심 설계 원리
 
-본 프로젝트는 단순 패킷 출력이 아니라
-계층 구조 기반 네트워크 분석 구조를 직접 구현한 것이다.
+IP/TCP Header 길이 계산: * ip_header_len = ip->iph_ihl * 4;
 
-특히 header length 기반 parsing을 통해
-고정 offset 방식보다 일반화된 패킷 분석이 가능하도록 설계하였다.
+tcp_header_len = TH_OFF(tcp) * 4;
+
+HTTP 페이로드: 전체 길이에서 각 헤더 길이를 감산하여 시작 위치를 동적으로 결정.
+
+BPF 필터링: 커널 레벨에서 TCP 80 포트 패킷만 필터링하여 분석 성능 최적화.
