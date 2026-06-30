@@ -52,7 +52,7 @@ sudo ./analyzer <인터페이스명>  # 예: sudo ./analyzer eth0
 
 분석기는 TCP Port 80(HTTP) 트래픽만 감지. HTTPS(443)는 암호화되어 내용 확인이 어려우므로, 테스트를 위해 새로운 터미널 창에서 다음 명령어를 실행해야 한다. 
 
-# HTTP 사이트에 요청을 보내 트래픽 발생
+# HTTP 사이트에 요청을 보내 트래픽 발생 (wsl 새 터미널에서 입력해야 함)
 curl [http://info.cern.ch/](http://info.cern.ch/)
 ```
 
